@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>نمودار دلاری سهام</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/klinecharts@9.8.10/dist/umd/klinecharts.min.js"></script>
+  <style>
+    :root {
+      --bg: #131722;
+      --panel: #1b2030;
+      --line: #2a3145;
+      --text: #d4d9e6;
+      --dim: #7d869d;
+      --accent: #f2b544;
+      --up: #26a69a;
+      --down: #ef5350;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Vazirmatn, Tahoma, sans-serif;
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    input,
+    select,
+    button {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 5px 10px;
+    }
+
+    input {
+      width: 120px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--dim);
+    }
+
+    button.on {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #1a1405;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .sep {
+      width: 1px;
+      height: 22px;
+      background: var(--line);
+    }
+
+    #status {
+      margin-inline-start: auto;
+      color: var(--dim);
+    }
+
+    #status.err {
+      color: var(--down);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    #tools {
+      width: 92px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--panel);
+      border-inline-end: 1px solid var(--line);
+      overflow-y: auto;
+    }
+
+    #tools button {
+      text-align: start;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    #tools h4 {
+      margin: 8px 0 2px;
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--dim);
+    }
+
+    #chart {
+      flex: 1;
+      min-width: 0;
+      direction: ltr;
+    }
+
+    @media (max-width: 700px) {
+      #tools {
+        width: 70px;
+      }
+
+      input {
+        width: 90px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="group">
+      <input id="symbol" value="پترول" placeholder="نماد" aria-label="نماد">
+      <button id="load" class="primary">نمایش</button>
+    </div>
+    <div class="sep"></div>
+    <div class="group" id="cur">
+      <button data-v="usd" class="on">دلار</button>
+      <button data-v="irr">ریال</button>
+      <button data-v="now" title="قیمت دلاری سهم × نرخ دلار امروز">ریال به نرخ امروز</button>
+    </div>
+    <div class="group">
+      <select id="adjust" aria-label="تعدیل">
+        <option value="1">تعدیل: سود نقدی + افزایش سرمایه</option>
+        <option value="2">تعدیل: فقط افزایش سرمایه</option>
+        <option value="0">بدون تعدیل</option>
+      </select>
+    </div>
+    <div class="group" id="tf">
+      <button data-v="D" class="on">روزانه</button>
+      <button data-v="W">هفتگی</button>
+      <button data-v="M">ماهانه</button>
+    </div>
+    <div class="group">
+      <select id="ctype" aria-label="نوع نمودار">
+        <option value="candle_solid">کندل</option>
+        <option value="candle_stroke">کندل توخالی</option>
+        <option value="ohlc">OHLC</option>
+        <option value="area">خطی (سطحی)</option>
+      </select>
+    </div>
+    <div class="sep"></div>
+    <div class="group" id="inds"></div>
+    <span id="status">آماده</span>
+  </header>
+  <main>
+    <aside id="tools"></aside>
+    <div id="chart"></div>
+  </main>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const state = { data: null, cur: 'usd', tf: 'D', subPanes: {} };
+
+    const chart = klinecharts.init('chart');
+    chart.setStyles('dark');
+    chart.setStyles({
+      grid: { horizontal: { color: '#222a3c' }, vertical: { color: '#222a3c' } },
+      candle: {
+        bar: {
+          upColor: '#26a69a', downColor: '#ef5350', noChangeColor: '#888',
+          upBorderColor: '#26a69a', downBorderColor: '#ef5350', noChangeBorderColor: '#888',
+          upWickColor: '#26a69a', downWickColor: '#ef5350', noChangeWickColor: '#888'
+        }
+      }
+    });
+    chart.setTimezone('UTC');
+    chart.createIndicator('VOL', false, { height: 90 });
+    window.addEventListener('resize', () => chart.resize());
+
+    /* ---------- ابزارها ---------- */
+    const drawTools = [
+      ['خط روند', 'straightLine'], ['نیم‌خط', 'rayLine'], ['پاره‌خط', 'segment'], ['فلش', 'arrow'],
+      ['افقی', 'horizontalStraightLine'], ['عمودی', 'verticalStraightLine'], ['خط قیمت', 'priceLine'],
+      ['کانال قیمت', 'priceChannelLine'], ['کانال موازی', 'parallelStraightLine'], ['فیبوناچی', 'fibonacciLine']
+    ];
+    const toolsEl = $('#tools');
+    toolsEl.insertAdjacentHTML('beforeend', '<h4>ترسیم</h4>');
+    drawTools.forEach(([label, name]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.onclick = () => chart.createOverlay({ name, mode: 'weak_magnet' });
+      toolsEl.appendChild(b);
+    });
+    toolsEl.insertAdjacentHTML('beforeend', '<h4>مدیریت</h4>');
+    const clr = document.createElement('button');
+    clr.textContent = 'پاک کردن همه';
+    clr.onclick = () => chart.removeOverlay();
+    toolsEl.appendChild(clr);
+
+    /* ---------- اندیکاتورها ---------- */
+    const mainInds = ['MA', 'EMA', 'BOLL', 'SAR'];
+    const subInds = ['MACD', 'RSI', 'KDJ'];
+    const indsEl = $('#inds');
+    [...mainInds, ...subInds].forEach((name) => {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.onclick = () => {
+        const on = b.classList.toggle('on');
+        if (mainInds.includes(name)) {
+          on ? chart.createIndicator(name, true, { id: 'candle_pane' }) : chart.removeIndicator('candle_pane', name);
+        } else if (on) {
+          state.subPanes[name] = chart.createIndicator(name, false, { height: 110 });
+        } else {
+          chart.removeIndicator(state.subPanes[name], name);
+        }
+      };
+      indsEl.appendChild(b);
+    });
+
+    /* ---------- تجمیع تایم‌فریم ---------- */
+    function aggregate(rows, tf) {
+      if (tf === 'D') return rows;
+      const key = (ts) => {
+        if (tf === 'M') { const d = new Date(ts); return d.getUTCFullYear() * 12 + d.getUTCMonth(); }
+        return Math.floor((ts / 86400000 - 2) / 7); // هفته ایرانی: شنبه تا جمعه
+      };
+      const out = [];
+      let lastKey = null;
+      for (const r of rows) {
+        const k = key(r.timestamp);
+        if (k !== lastKey) { out.push({ ...r }); lastKey = k; }
+        else {
+          const c = out[out.length - 1];
+          c.high = Math.max(c.high, r.high); c.low = Math.min(c.low, r.low);
+          c.close = r.close; c.volume += r.volume;
+        }
+      }
+      return out;
+    }
+
+    /* ---------- رسم ---------- */
+    function render() {
+      if (!state.data) return;
+      const rows = aggregate(state.data[state.cur], state.tf);
+      const last = rows[rows.length - 1].close;
+      const prec = state.cur !== 'usd' ? 0 : last < 1 ? 6 : last < 10 ? 4 : 2;
+      chart.setPriceVolumePrecision(prec, 0);
+      chart.applyNewData(rows);
+    }
+
+    async function load() {
+      const symbol = $('#symbol').value.trim();
+      if (!symbol) return;
+      const st = $('#status');
+      st.className = ''; st.textContent = 'در حال دریافت… (بار اول ممکن است چند دقیقه طول بکشد)';
+      try {
+        const res = await fetch(`/api/series?symbol=${encodeURIComponent(symbol)}&adjust=${$('#adjust').value}`);
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || res.status);
+        // ارزش به نرخ دلار امروز = سری دلاری × آخرین نرخ دلار
+        j.now = j.usd.map((k) => ({
+          timestamp: k.timestamp, volume: k.volume,
+          open: k.open * j.rate, high: k.high * j.rate, low: k.low * j.rate, close: k.close * j.rate
+        }));
+        state.data = j;
+        render();
+        console.log('today candle:', j.today);
+        st.textContent = `${j.symbol} · ${j.usd.length} کندل · نرخ دلار امروز: ${Math.round(j.rate / 10).toLocaleString('en-US')} تومان`;
+      } catch (e) {
+        st.className = 'err'; st.textContent = e.message;
+      }
+    }
+
+    function bindToggle(id, key) {
+      $(id).addEventListener('click', (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        $(id).querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+        b.classList.add('on'); state[key] = b.dataset.v; render();
+      });
+    }
+    bindToggle('#cur', 'cur');
+    bindToggle('#tf', 'tf');
+    $('#load').onclick = load;
+    $('#adjust').onchange = load;
+    $('#symbol').addEventListener('keydown', (e) => e.key === 'Enter' && load());
+    $('#ctype').onchange = (e) => chart.setStyles({ candle: { type: e.target.value } });
+    load();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "usd-stock-chart",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "tse-client": "^2.27.6"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
